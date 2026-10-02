@@ -54,6 +54,76 @@ describe('SalesReceipt Handlers', () => {
       expect(payload.GlobalTaxCalculation).toBe('TaxExcluded');
     });
 
+    it('should pass per-line ClassRef to QuickBooks when class_ref is given', async () => {
+      mockQuickBooksInstance.createSalesReceipt.mockImplementation((payload: any, cb: any) => cb(null, { Id: '123' }));
+
+      const result = await createQuickbooksSalesReceipt({
+        customer_ref: 'cust-1',
+        line_items: [
+          { item_ref: 'item-1', qty: 1, unit_price: 850, class_ref: 'class-1' },
+          { item_ref: 'item-2', qty: 1, unit_price: 150, class_ref: 'class-2' },
+          { item_ref: 'item-3', qty: 1, unit_price: 10 }
+        ]
+      });
+
+      expect(result.isError).toBe(false);
+      const payload = (mockQuickBooksInstance.createSalesReceipt.mock.calls[0] as any)[0];
+      expect(payload.Line[0].SalesItemLineDetail.ClassRef).toEqual({ value: 'class-1' });
+      expect(payload.Line[1].SalesItemLineDetail.ClassRef).toEqual({ value: 'class-2' });
+      // Lines without class_ref must not send a ClassRef, so QuickBooks leaves the line unclassed
+      expect(payload.Line[2].SalesItemLineDetail.ClassRef).toBeUndefined();
+    });
+
+    it('should send addresses, tax detail, classification and request_id to QuickBooks', async () => {
+      mockQuickBooksInstance.createSalesReceipt.mockImplementation((payload: any, cb: any) => cb(null, { Id: '123' }));
+      const venue = {
+        line1: '15321 Main St NE',
+        city: 'Duvall',
+        country_sub_division_code: 'WA',
+        postal_code: '98019',
+      };
+
+      const result = await createQuickbooksSalesReceipt({
+        customer_ref: 'cust-1',
+        line_items: [
+          { item_ref: 'item-1', amount: 54.35, tax_code_ref: 'TAX', class_ref: 'class-1' },
+          { item_ref: '48', amount: -10 },
+        ],
+        ship_addr: venue,
+        ship_from_addr: venue,
+        bill_addr: { city: 'Seattle' },
+        txn_tax_detail: { txn_tax_code_ref: '3', total_tax: 4.97 },
+        department_ref: 'dept-1',
+        class_ref: 'class-2',
+        payment_ref_num: 'R-1001',
+        request_id: 'sq-payment-1',
+      });
+
+      expect(result.isError).toBe(false);
+      const payload = (mockQuickBooksInstance.createSalesReceipt.mock.calls[0] as any)[0];
+      // An explicit amount goes out as Line.Amount with no UnitPrice, so
+      // QuickBooks can't re-derive (and re-round) it from Qty x UnitPrice.
+      expect(payload.Line[0].Amount).toBe(54.35);
+      expect(payload.Line[0].SalesItemLineDetail.UnitPrice).toBeUndefined();
+      expect(payload.Line[0].SalesItemLineDetail.ClassRef).toEqual({ value: 'class-1' });
+      // Negative lines are passed through for QuickBooks to accept or reject.
+      expect(payload.Line[1].Amount).toBe(-10);
+      expect(payload.Line[1].SalesItemLineDetail.ClassRef).toBeUndefined();
+      expect(payload.ShipAddr).toEqual({
+        Line1: '15321 Main St NE',
+        City: 'Duvall',
+        CountrySubDivisionCode: 'WA',
+        PostalCode: '98019',
+      });
+      expect(payload.ShipFromAddr).toEqual(payload.ShipAddr);
+      expect(payload.BillAddr).toEqual({ City: 'Seattle' });
+      expect(payload.TxnTaxDetail).toEqual({ TxnTaxCodeRef: { value: '3' }, TotalTax: 4.97 });
+      expect(payload.DepartmentRef).toEqual({ value: 'dept-1' });
+      expect(payload.ClassRef).toEqual({ value: 'class-2' });
+      expect(payload.PaymentRefNum).toBe('R-1001');
+      expect(payload.requestId).toBe('sq-payment-1');
+    });
+
     it('should handle API errors', async () => {
       mockQuickBooksInstance.createSalesReceipt.mockImplementation((payload: any, cb: any) =>
         cb(new Error('Validation error'), null)

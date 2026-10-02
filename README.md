@@ -232,7 +232,7 @@ Complete CRUD operations are available for all entity types:
 
 | Tool | Description |
 |------|-------------|
-| `create_sales_receipt` | Create a sales receipt |
+| `create_sales_receipt` | Create a sales receipt (amount-based lines, addresses, tax override, class/location, idempotent `request_id`) |
 | `get_sales_receipt` | Get sales receipt by ID |
 | `update_sales_receipt` | Update sales receipt |
 | `delete_sales_receipt` | Void a sales receipt |
@@ -242,7 +242,7 @@ Complete CRUD operations are available for all entity types:
 | `update_credit_memo` | Update credit memo |
 | `delete_credit_memo` | Void a credit memo |
 | `search_credit_memos` | Search credit memos |
-| `create_refund_receipt` | Create a refund receipt |
+| `create_refund_receipt` | Create a refund receipt (same fields as `create_sales_receipt`) |
 | `get_refund_receipt` | Get refund receipt by ID |
 | `update_refund_receipt` | Update refund receipt |
 | `delete_refund_receipt` | Void a refund receipt |
