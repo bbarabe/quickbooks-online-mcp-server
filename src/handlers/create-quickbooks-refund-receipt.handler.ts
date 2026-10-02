@@ -1,16 +1,16 @@
 import { QuickbooksClient } from "../clients/quickbooks-client.js";
 import { ToolResponse } from "../types/tool-response.js";
 import { formatError } from "../helpers/format-error.js";
+import {
+  applySalesTransactionFields,
+  SalesLineItemInput,
+  SalesTransactionFieldsInput,
+  toSalesItemLine,
+} from "../helpers/sales-transaction-fields.js";
 
-export interface CreateRefundReceiptInput {
+export interface CreateRefundReceiptInput extends SalesTransactionFieldsInput {
   customer_ref: string;
-  line_items: Array<{
-    item_ref: string;
-    qty: number;
-    unit_price: number;
-    description?: string;
-    tax_code_ref?: string; // TaxCode id (non-US) or TAX/NON (US)
-  }>;
+  line_items: SalesLineItemInput[];
   payment_method_ref?: string;
   deposit_to_account_ref?: string;
   txn_date?: string;
@@ -25,19 +25,7 @@ export async function createQuickbooksRefundReceipt(data: CreateRefundReceiptInp
 
     const refundReceiptPayload: any = {
       CustomerRef: { value: data.customer_ref },
-      Line: data.line_items.map((l, idx) => ({
-        Id: `${idx + 1}`,
-        LineNum: idx + 1,
-        Description: l.description || undefined,
-        Amount: l.qty * l.unit_price,
-        DetailType: "SalesItemLineDetail",
-        SalesItemLineDetail: {
-          ItemRef: { value: l.item_ref },
-          Qty: l.qty,
-          UnitPrice: l.unit_price,
-          TaxCodeRef: l.tax_code_ref ? { value: l.tax_code_ref } : undefined,
-        },
-      })),
+      Line: data.line_items.map(toSalesItemLine),
     };
 
     if (data.payment_method_ref) {
@@ -58,6 +46,7 @@ export async function createQuickbooksRefundReceipt(data: CreateRefundReceiptInp
     if (data.global_tax_calculation) {
       refundReceiptPayload.GlobalTaxCalculation = data.global_tax_calculation;
     }
+    applySalesTransactionFields(refundReceiptPayload, data);
 
     return new Promise((resolve) => {
       (quickbooks as any).createRefundReceipt(refundReceiptPayload, (err: any, created: any) => {

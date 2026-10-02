@@ -78,6 +78,38 @@ describe('Refund, PurchaseOrder, VendorCredit Handlers', () => {
       expect(payload.GlobalTaxCalculation).toBe('TaxExcluded');
     });
 
+    it('should send addresses, tax detail, classification and request_id to QuickBooks', async () => {
+      mockQuickBooksInstance.createRefundReceipt.mockImplementation((payload: any, cb: any) => cb(null, { Id: '1' }));
+
+      const result = await createQuickbooksRefundReceipt({
+        customer_ref: 'cust-1',
+        deposit_to_account_ref: 'acc-1',
+        line_items: [{ item_ref: 'item-1', amount: 54.35, tax_code_ref: 'TAX', class_ref: 'class-1' }],
+        ship_addr: { line1: '15321 Main St NE', city: 'Duvall', country_sub_division_code: 'WA', postal_code: '98019' },
+        ship_from_addr: { city: 'Duvall' },
+        bill_addr: { city: 'Seattle' },
+        txn_tax_detail: { total_tax: 4.97 },
+        department_ref: 'dept-1',
+        class_ref: 'class-2',
+        payment_ref_num: 'RF-1001',
+        request_id: 'sq-refund-1',
+      });
+
+      expect(result.isError).toBe(false);
+      const payload = (mockQuickBooksInstance.createRefundReceipt.mock.calls[0] as any)[0];
+      expect(payload.Line[0].Amount).toBe(54.35);
+      expect(payload.Line[0].SalesItemLineDetail.UnitPrice).toBeUndefined();
+      expect(payload.Line[0].SalesItemLineDetail.ClassRef).toEqual({ value: 'class-1' });
+      expect(payload.ShipAddr.CountrySubDivisionCode).toBe('WA');
+      expect(payload.ShipFromAddr.City).toBe('Duvall');
+      expect(payload.BillAddr.City).toBe('Seattle');
+      expect(payload.TxnTaxDetail.TotalTax).toBe(4.97);
+      expect(payload.DepartmentRef).toEqual({ value: 'dept-1' });
+      expect(payload.ClassRef).toEqual({ value: 'class-2' });
+      expect(payload.PaymentRefNum).toBe('RF-1001');
+      expect(payload.requestId).toBe('sq-refund-1');
+    });
+
     it('should create a refund receipt - authentication error', async () => {
       (mockQuickbooksClientClass.getInstance as any).mockRejectedValue(new Error('Auth failed'));
 
