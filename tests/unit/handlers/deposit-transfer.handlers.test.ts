@@ -64,6 +64,70 @@ describe('Deposit and Transfer Handlers', () => {
       expect(result.result).toEqual(mockDeposit);
     });
 
+    it('should send the Entity field in the flat {value, type} shape QBO actually expects', async () => {
+      // Regression guard: this used to send a nested { Type, EntityRef: { value } }
+      // shape, which QBO silently ignores — entity_ref never actually reached
+      // the created deposit's line. Confirmed against a live GET response that
+      // QBO's real Deposit.Line[].DepositLineDetail.Entity shape is flat.
+      let captured: any;
+      mockQuickBooksInstance.createDeposit.mockImplementation((payload: any, cb: any) => {
+        captured = payload;
+        cb(null, payload);
+      });
+
+      await createQuickbooksDeposit({
+        deposit_to_account_ref: 'account-1',
+        line_items: [{ amount: 1000, entity_ref: { type: 'Customer', value: 'cust-1' } }],
+      });
+
+      expect(captured.Line[0].DepositLineDetail.Entity).toEqual({ value: 'cust-1', type: 'Customer' });
+    });
+
+    it('should send linked lines, negative detail lines, cash back and request_id', async () => {
+      // A card-processor payout: two receipts swept out of Undeposited Funds,
+      // a fee journal entry, and the processing fee netted as a negative line.
+      let captured: any;
+      mockQuickBooksInstance.createDeposit.mockImplementation((payload: any, cb: any) => {
+        captured = payload;
+        cb(null, { Id: '9' });
+      });
+
+      const result = await createQuickbooksDeposit({
+        deposit_to_account_ref: '35',
+        line_items: [
+          { txn_id: '501', txn_type: 'SalesReceipt', amount: 59.31 },
+          { txn_id: '502', txn_type: 'RefundReceipt', amount: -20 },
+          { txn_id: '77', txn_type: 'JournalEntry', txn_line_id: '2', amount: -1.5 },
+          { account_ref: '61', amount: -1.86, description: 'Square fees', entity_ref: { type: 'Vendor', value: '12' } },
+        ],
+        cash_back: { account_ref: '40', amount: 5, memo: 'Float' },
+        request_id: 'sq-payout-1',
+      });
+
+      expect(result.isError).toBe(false);
+      // Linked lines carry LinkedTxn and no DepositLineDetail. TxnLineId
+      // defaults to "0", which deposits the linked transaction as a whole.
+      expect(captured.Line[0]).toEqual({
+        Id: '1',
+        Amount: 59.31,
+        Description: undefined,
+        LinkedTxn: [{ TxnId: '501', TxnType: 'SalesReceipt', TxnLineId: '0' }],
+      });
+      expect(captured.Line[1].Amount).toBe(-20);
+      expect(captured.Line[2].LinkedTxn).toEqual([{ TxnId: '77', TxnType: 'JournalEntry', TxnLineId: '2' }]);
+      // Negative detail lines go through unchanged for QuickBooks to judge.
+      expect(captured.Line[3]).toEqual({
+        Id: '4',
+        Amount: -1.86,
+        Description: 'Square fees',
+        DetailType: 'DepositLineDetail',
+        DepositLineDetail: { AccountRef: { value: '61' }, Entity: { value: '12', type: 'Vendor' } },
+      });
+      expect(captured.CashBack).toEqual({ AccountRef: { value: '40' }, Amount: 5, Memo: 'Float' });
+      // node-quickbooks turns requestId into the requestid query parameter.
+      expect(captured.requestId).toBe('sq-payout-1');
+    });
+
     it('should create a deposit - API error', async () => {
       mockQuickBooksInstance.createDeposit.mockImplementation((payload: any, cb: any) =>
         cb(new Error('Create failed'), null)
