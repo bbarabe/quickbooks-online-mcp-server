@@ -255,7 +255,7 @@ Complete CRUD operations are available for all entity types:
 
 | Tool | Description |
 |------|-------------|
-| `create_deposit` | Create a bank deposit |
+| `create_deposit` | Create a bank deposit (linked Undeposited Funds lines, negative detail lines, cash back, idempotent `request_id`) |
 | `get_deposit` | Get deposit by ID |
 | `update_deposit` | Update deposit details |
 | `delete_deposit` | Delete a deposit |
