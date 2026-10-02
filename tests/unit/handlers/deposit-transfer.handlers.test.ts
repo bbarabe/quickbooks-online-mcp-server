@@ -240,6 +240,44 @@ describe('Deposit and Transfer Handlers', () => {
       expect(captured.sparse).toBeUndefined();
     });
 
+    it('should merge patch over the fetched deposit without letting it override Id or SyncToken', async () => {
+      mockQuickBooksInstance.getDeposit.mockImplementation((_id: any, cb: any) =>
+        cb(null, {
+          Id: '42',
+          SyncToken: '3',
+          TxnDate: '2026-09-30',
+          DepositToAccountRef: { value: '35' },
+          Line: [{ Id: '1', Amount: 100, DetailType: 'DepositLineDetail', DepositLineDetail: {} }],
+        })
+      );
+      let captured: any;
+      mockQuickBooksInstance.updateDeposit.mockImplementation((payload: any, cb: any) => {
+        captured = payload;
+        cb(null, payload);
+      });
+      const lines = [
+        { Id: '1', Amount: 100, DetailType: 'DepositLineDetail', DepositLineDetail: {} },
+        { Amount: -2.5, DetailType: 'DepositLineDetail', DepositLineDetail: { AccountRef: { value: '61' } } },
+      ];
+
+      const result = await updateQuickbooksDeposit({
+        id: '42',
+        sync_token: '4',
+        private_note: 'named wins',
+        patch: { Line: lines, TxnDate: '2026-10-01', PrivateNote: 'from patch', Id: '999', SyncToken: '0' },
+      });
+
+      expect(result.isError).toBe(false);
+      expect(captured.Line).toEqual(lines);
+      expect(captured.TxnDate).toBe('2026-10-01');
+      // Fields the patch leaves out are carried over from the fetched record.
+      expect(captured.DepositToAccountRef).toEqual({ value: '35' });
+      // Named parameters override the same field in patch.
+      expect(captured.PrivateNote).toBe('named wins');
+      expect(captured.Id).toBe('42');
+      expect(captured.SyncToken).toBe('4');
+    });
+
     it('should update a deposit - authentication error', async () => {
       (mockQuickbooksClientClass.getInstance as any).mockRejectedValue(new Error('Auth failed'));
 

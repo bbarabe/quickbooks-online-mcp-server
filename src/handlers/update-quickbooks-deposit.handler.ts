@@ -6,6 +6,7 @@ export interface UpdateDepositInput {
   id: string;
   sync_token: string;
   private_note?: string;
+  patch?: Record<string, any>; // Extra fields in QuickBooks' PascalCase shape
 }
 
 export async function updateQuickbooksDeposit(data: UpdateDepositInput): Promise<ToolResponse<any>> {
@@ -21,7 +22,9 @@ export async function updateQuickbooksDeposit(data: UpdateDepositInput): Promise
       });
     });
 
-    const payload: any = { ...current, SyncToken: data.sync_token };
+    // patch is merged over the fetched record; Id and SyncToken come last so
+    // a patch can never retarget the update or bypass optimistic locking.
+    const payload: any = { ...current, ...data.patch, Id: data.id, SyncToken: data.sync_token };
     if (data.private_note) payload.PrivateNote = data.private_note;
 
     return new Promise((resolve) => {

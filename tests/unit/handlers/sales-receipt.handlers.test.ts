@@ -220,6 +220,37 @@ describe('SalesReceipt Handlers', () => {
       expect(result.isError).toBe(false);
     });
 
+    it('should send patch fields as a sparse update that cannot override Id, SyncToken or sparse', async () => {
+      mockQuickBooksInstance.updateSalesReceipt.mockImplementation((payload: any, cb: any) => cb(null, { Id: '123' }));
+      const lines = [{ Id: '1', Amount: 54.35, DetailType: 'SalesItemLineDetail', SalesItemLineDetail: { ItemRef: { value: '1' } } }];
+
+      const result = await updateQuickbooksSalesReceipt({
+        id: '123',
+        sync_token: '2',
+        private_note: 'named wins',
+        patch: {
+          Line: lines,
+          ShipAddr: { City: 'Duvall' },
+          PrivateNote: 'from patch',
+          Id: '999',
+          SyncToken: '0',
+          sparse: false,
+        },
+      });
+
+      expect(result.isError).toBe(false);
+      const payload = (mockQuickBooksInstance.updateSalesReceipt.mock.calls[0] as any)[0];
+      expect(payload.Line).toEqual(lines);
+      expect(payload.ShipAddr).toEqual({ City: 'Duvall' });
+      // Named parameters override the same field in patch.
+      expect(payload.PrivateNote).toBe('named wins');
+      // A patch must never retarget the update, skip optimistic locking, or
+      // turn it into a full update that blanks every field it leaves out.
+      expect(payload.Id).toBe('123');
+      expect(payload.SyncToken).toBe('2');
+      expect(payload.sparse).toBe(true);
+    });
+
     it('should handle API errors', async () => {
       mockQuickBooksInstance.updateSalesReceipt.mockImplementation((payload: any, cb: any) =>
         cb(new Error('Update failed'), null)

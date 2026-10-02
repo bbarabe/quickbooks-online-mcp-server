@@ -184,6 +184,26 @@ describe('Refund, PurchaseOrder, VendorCredit Handlers', () => {
       expect(result.isError).toBe(false);
     });
 
+    it('should send patch fields as a sparse update that cannot override Id, SyncToken or sparse', async () => {
+      mockQuickBooksInstance.updateRefundReceipt.mockImplementation((payload: any, cb: any) => cb(null, {}));
+
+      const result = await updateQuickbooksRefundReceipt({
+        id: '1',
+        sync_token: '3',
+        doc_number: 'RF-003',
+        patch: { PaymentRefNum: 'RF-1001', DocNumber: 'from patch', Id: '999', SyncToken: '0', sparse: false },
+      });
+
+      expect(result.isError).toBe(false);
+      const payload = (mockQuickBooksInstance.updateRefundReceipt.mock.calls[0] as any)[0];
+      expect(payload.PaymentRefNum).toBe('RF-1001');
+      // Named parameters override the same field in patch.
+      expect(payload.DocNumber).toBe('RF-003');
+      expect(payload.Id).toBe('1');
+      expect(payload.SyncToken).toBe('3');
+      expect(payload.sparse).toBe(true);
+    });
+
     it('should update a refund receipt - authentication error', async () => {
       (mockQuickbooksClientClass.getInstance as any).mockRejectedValue(new Error('Auth failed'));
 

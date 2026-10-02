@@ -8,13 +8,18 @@ export interface UpdateRefundReceiptInput {
   customer_ref?: string;
   private_note?: string;
   doc_number?: string;
+  patch?: Record<string, any>; // Extra fields in QuickBooks' PascalCase shape
 }
 
 export async function updateQuickbooksRefundReceipt(data: UpdateRefundReceiptInput): Promise<ToolResponse<any>> {
   try {
     const quickbooks = await QuickbooksClient.getInstance();
 
+    // patch carries any other fields in QuickBooks' own shape. Id, SyncToken
+    // and sparse are set after it so a patch can never retarget the update or
+    // turn it into a full update that blanks every field it leaves out.
     const payload: any = {
+      ...data.patch,
       Id: data.id,
       SyncToken: data.sync_token,
       sparse: true,
