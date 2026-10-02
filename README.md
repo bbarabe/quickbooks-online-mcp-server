@@ -234,7 +234,7 @@ Complete CRUD operations are available for all entity types:
 |------|-------------|
 | `create_sales_receipt` | Create a sales receipt |
 | `get_sales_receipt` | Get sales receipt by ID |
-| `update_sales_receipt` | Update sales receipt |
+| `update_sales_receipt` | Update sales receipt (sparse; any field via `patch`) |
 | `delete_sales_receipt` | Void a sales receipt |
 | `search_sales_receipts` | Search sales receipts |
 | `create_credit_memo` | Create a credit memo |
@@ -244,7 +244,7 @@ Complete CRUD operations are available for all entity types:
 | `search_credit_memos` | Search credit memos |
 | `create_refund_receipt` | Create a refund receipt |
 | `get_refund_receipt` | Get refund receipt by ID |
-| `update_refund_receipt` | Update refund receipt |
+| `update_refund_receipt` | Update refund receipt (sparse; any field via `patch`) |
 | `delete_refund_receipt` | Void a refund receipt |
 | `search_refund_receipts` | Search refund receipts |
 
@@ -257,7 +257,7 @@ Complete CRUD operations are available for all entity types:
 |------|-------------|
 | `create_deposit` | Create a bank deposit |
 | `get_deposit` | Get deposit by ID |
-| `update_deposit` | Update deposit details |
+| `update_deposit` | Update deposit details (any field via `patch`) |
 | `delete_deposit` | Delete a deposit |
 | `search_deposits` | Search deposits |
 | `create_transfer` | Create an account transfer |
